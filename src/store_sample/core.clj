@@ -11,18 +11,39 @@
             )
   (:import  (java.util        Locale)))
 
+;; Before starting this application, please create PostgreSQL user and database by bellow commands.
+;; ----
+;; $ sudo -u postgres psql
+;; postgres=# CREATE USER "store-sample" WITH PASSWORD 'P@ssw0rd';
+;; postgres=# CREATE DATABASE "store-sample" WITH OWNER "store-sample";
+;; postgres=# \q
+;; ----
+;;
+;; And do testing.
+;; ---
+;; $ lein test
+;; ---
+
 ;; Add message resource.
 (dog-mission/conj-resource-bundle-namespace "store-sample.message")
 
 (def database-schema
-  {:products {:columns      (array-map :code     {:type :string}
-                                       :name     {:type :string}
-                                       :price    {:type :decimal})
-              :validations  {:presence [[:code]
-                                        [:name]
-                                        [:price]]}
-              :placeholders {:code     "123-4567"}
-              }})
+  (array-map :categories {:columns                   (array-map :name                {:type      :string})
+                          :many-to-one-relationships (array-map :superior-category   {:table-key :categories})
+                          :one-to-many-relationships (array-map :inferior-categories {:table-key :categories, :many-to-one-relationship-key :superior-category}
+                                                                :products            {:table-key :products,   :many-to-one-relationship-key :category})
+                          
+                          :validations  {:presense [[:name]]}}
+             
+             :products   {:columns                   (array-map :code                {:type      :string}
+                                                                :name                {:type      :string}
+                                                                :price               {:type      :decimal})
+                          :many-to-one-relationships (array-map :category            {:table-key :categories})
+                          :one-to-many-relationships (array-map)
+                          
+                          :validations  {:presence [[:code] [:name] [:price]]}
+                          :placeholders {:code     "123-4567"}}
+             ))
 
 (def database-spec
   {:subprotocol "postgresql"

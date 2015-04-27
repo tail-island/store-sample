@@ -5,19 +5,16 @@
             (clojure.java     [jdbc    :as    jdbc])
             (clojure.tools    [logging :as    log])
             (clj-time         [core    :as    time])
-            (twin-spar        [core    :as    twin-spar])))
+            (twin-spar        [core    :as    twin-spar :refer [$=]])))
 
-;; Before testing, please create user and database by bellow commands.
-;; ----
-;; CREATE USER "store-sample" WITH PASSWORD 'P@ssw0rd';
-;; CREATE DATABASE "store-sample" WITH OWNER "sweet-crossplane";
-;; ----
+(def ^:private database-data'
+  (partial twin-spar/database-data database-schema))
 
 (def ^:private database'
-  (partial twin-spar/database database-schema))
+  (partial twin-spar/database      database-schema))
 
 (def ^:private save!'
-  (partial twin-spar/save!    database-schema))
+  (partial twin-spar/save!         database-schema))
 
 (def ^:private row-keys
   (repeatedly twin-spar/new-key))
@@ -39,11 +36,27 @@
                       (prepare-tables)
                       (jdbc/with-db-transaction [transaction database-spec]
                         (-> (database')
-                            (assoc-in [:products (row-key 10)] {:code "000-0010", :name "Product #10", :price 1010.00M})
-                            (assoc-in [:products (row-key 11)] {:code "000-0011", :name "Product #11", :price 1011.00M})
-                            (assoc-in [:products (row-key 12)] {:code "000-0012", :name "Product #12", :price 1012.00M})
+
+                            (assoc-in [:categories (row-key 10)] {:name "Category #10", :superior-category-key nil})
+                            (assoc-in [:categories (row-key 11)] {:name "Category #11", :superior-category-key (row-key 10)})
+                            (assoc-in [:categories (row-key 12)] {:name "Category #12", :superior-category-key (row-key 11)})
+                            (assoc-in [:categories (row-key 13)] {:name "Category #13", :superior-category-key (row-key 11)})
+                            (assoc-in [:categories (row-key 14)] {:name "Category #14", :superior-category-key (row-key 10)})
+                            
+                            (assoc-in [:products   (row-key 20)] {:code "000-0020", :name "Product #20", :price 1020.20M, :category-key (row-key 10)})
+                            (assoc-in [:products   (row-key 21)] {:code "000-0021", :name "Product #21", :price 1021.21M, :category-key (row-key 10)})
+                            (assoc-in [:products   (row-key 22)] {:code "000-0022", :name "Product #22", :price 1022.22M, :category-key (row-key 10)})
+                            (assoc-in [:products   (row-key 23)] {:code "000-0023", :name "Product #23", :price 1023.23M, :category-key (row-key 11)})
+                            (assoc-in [:products   (row-key 24)] {:code "000-0024", :name "Product #24", :price 1024.24M, :category-key (row-key 12)})
+
                             (save!' transaction)))
                       (test-function)))
 
-(deftest a-test
-  (is (= 1 2)))
+(deftest test-category
+  (jdbc/with-db-transaction [transaction database-spec]
+    (let [database (database' (database-data' transaction :categories ($= :name "Category #11")))]
+      (is (= "Category #11" (get-in database [:categories (row-key 11) :name])))
+      (is (= "Category #10" (get-in database [:categories (row-key 11) :superior-category :name])))
+      (is (= ["Category #12" "Category #13"]
+             (sort (map :name (get-in database [:categories (row-key 11) :inferior-categories])))))
+      )))
