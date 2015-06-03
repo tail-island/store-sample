@@ -50,13 +50,13 @@
                           :list                   {:properties [:code :name :price :category :release-date]
                                                    :sort-by    [:name (comp (partial * -1) compare)]}
                           :input                  {:properties [:category :code :name :price :release-date :note]}
+                          :validations            {:presence   [[:code] [:name] [:price] [:release-date] [:category]]
+                                                   :format     [[:code :code #"\A\d{3}-\d{4}\z" "please input %1$s like 123-4567."]]}
                           :before-validate-fn     (fn [database entity-class-key entity-key]
-                                                    (assoc-in database [entity-class-key entity-key :release-date] (-> (time/now) (time/to-time-zone dog-mission/*joda-time-zone*) (.withMillisOfDay 0) (time/to-time-zone time/utc))))
+                                                    (update-in database [entity-class-key entity-key :release-date] #(or % (-> (time/now) (time/to-time-zone dog-mission/*joda-time-zone*) (.withMillisOfDay 0) (time/to-time-zone time/utc)))))
                           :sql-exception-catch-fn (fn [sql-exception]
                                                     (if (= (.getSQLState sql-exception) "23505")
                                                       {:code ["Code must be unique."]}))
-                          :validations            {:presence   [[:code] [:name] [:price] [:release-date] [:category]]
-                                                   :format     [[:code :code #"\A\d{3}-\d{4}\z" "please input %1$s like 123-4567."]]}
                           }
              ))
 
