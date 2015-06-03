@@ -28,21 +28,36 @@
 (dog-mission/conj-resource-bundle-namespace "store-sample.message")
 
 (def database-schema
-  (array-map :categories {:columns                   (array-map :name                {:type      :string})
+  (array-map :categories {:columns                   (array-map :name                {:type      :string}
+                                                                :deprecated?         {:type      :boolean})
                           :many-to-one-relationships (array-map :superior-category   {:table-key :categories})
                           :one-to-many-relationships (array-map :inferior-categories {:table-key :categories, :many-to-one-relationship-key :superior-category}
                                                                 :products            {:table-key :products,   :many-to-one-relationship-key :category})
                           
                           :validations  {:presense [[:name]]}}
              
-             :products   {:columns                   (array-map :code                {:type      :string}
+             :products   {:columns                   (array-map :code                {:type      :string,     :constraint "UNIQUE"}
                                                                 :name                {:type      :string}
-                                                                :price               {:type      :decimal})
+                                                                :price               {:type      :decimal     :scale 2}
+                                                                :release-date        {:type      :date}
+                                                                :note                {:type      :text})
                           :many-to-one-relationships (array-map :category            {:table-key :categories})
                           :one-to-many-relationships (array-map)
                           
-                          :validations  {:presence [[:code] [:name] [:price]]}
-                          :placeholders {:code     "123-4567"}}
+                          :representative         :code
+                          :placeholders           {:code       "123-4567"}
+                          :search-condition       {:properties [:code :category :name :price :release-date]}
+                          :list                   {:properties [:code :name :price :category :release-date]
+                                                   :sort-by    [:name (comp (partial * -1) compare)]}
+                          :input                  {:properties [:category :code :name :price :release-date :note]}
+                          :before-validate-fn     (fn [database entity-class-key entity-key]
+                                                    (assoc-in database [entity-class-key entity-key :release-date] (-> (time/now) (time/to-time-zone dog-mission/*joda-time-zone*) (.withMillisOfDay 0) (time/to-time-zone time/utc))))
+                          :sql-exception-catch-fn (fn [sql-exception]
+                                                    (if (= (.getSQLState sql-exception) "23505")
+                                                      {:code ["Code must be unique."]}))
+                          :validations            {:presence   [[:code] [:name] [:price] [:release-date] [:category]]
+                                                   :format     [[:code :code #"\A\d{3}-\d{4}\z" "please input %1$s like 123-4567."]]}
+                          }
              ))
 
 (def database-spec
@@ -51,20 +66,22 @@
    :user        "store-sample"
    :password    "P@ssw0rd"})
 
-(sweet-crossplane/initialize database-schema database-spec "store sample" sweet-crossplane/default-layout)
+(sweet-crossplane/initialize database-schema database-spec "store sample" sweet-crossplane/default-layout-fn)
 
 (defroutes app-routes
-  (GET       "/" [] (sweet-crossplane/default-layout "sample store" [:div.jumbotron
-                                                                     [:h1 "Welcome to the store sample!"]
-                                                                     [:p  "This is a sweet-crossplane sample site."]]))
+  (GET       "/" [] (sweet-crossplane/layout "sample store" [:div.jumbotron
+                                                             [:h1 "Welcome to the store sample!"]
+                                                             [:p  "This is a sweet-crossplane sample site."]]))
   (resources "/")
   (sweet-crossplane/process-request))
 
 (def app-handler
   (-> app-routes
       (sweet-crossplane/wrap-ring-request)
-      (sweet-crossplane/wrap-time-zone)
+      (sweet-crossplane/wrap-entity-params)
       (sweet-crossplane/wrap-locale {:locales #{(Locale. "en") (Locale. "en" "US") (Locale. "ja")}})
+      (sweet-crossplane/wrap-time-zone)
+      (sweet-crossplane/wrap-http-header-cache-control)
       (wrap-base-url)
       (wrap-cookies)
       (wrap-keyword-params)
