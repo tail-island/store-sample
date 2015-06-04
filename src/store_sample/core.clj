@@ -34,7 +34,7 @@
                           :one-to-many-relationships (array-map :inferior-categories {:table-key :categories, :many-to-one-relationship-key :superior-category}
                                                                 :products            {:table-key :products,   :many-to-one-relationship-key :category})
                           
-                          :validations  {:presense [[:name]]}}
+                          :validations {:presense [[:name]]}}
              
              :products   {:columns                   (array-map :code                {:type      :string,     :constraint "UNIQUE"}
                                                                 :name                {:type      :string}
@@ -47,7 +47,7 @@
                           :representative         :code
                           :placeholders           {:code       "123-4567"}
                           :search-condition       {:properties [:code :category :name :price :release-date]}
-                          :list                   {:properties [:code :name :price :category :release-date]
+                          :list                   {:properties [:code :name :price]
                                                    :sort-by    [:name (comp (partial * -1) compare)]}
                           :input                  {:properties [:category :code :name :price :release-date :note]}
                           :validations            {:presence   [[:code] [:name] [:price] [:release-date] [:category]]
